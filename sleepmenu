@@ -1,173 +1,81 @@
 #!/bin/sh
 
-# The ramdisk /bin/sh uses "\c" at end of line to suppress newlines.
-# Oher shells use -ne and -e.  So define c or the other two.
-#c=\\c
-ne=-ne; e=-e
-
+# keys
 E=$(printf "\033")
-ESC=$(printf "\033")
-C_D=$(printf "\004")
-C_H=$(printf "\010")
-TAB=$(printf "\011")
-BS=$(printf "\177")
 NL='
 '
 
-# ANSI colors (darK,Red,Green,Yellow,Blue,Magenta,Cyan,White,Normal)
-K="${E}[1;30m"
-R="${E}[1;31m"
-G="${E}[1;32m"
-Y="${E}[1;33m"
-B="${E}[1;34m"
-M="${E}[1;35m"
-C="${E}[1;36m"
-W="${E}[1;37m"
+# ANSI colors
 N="${E}[0m"
-BOLD="${E}[1m"
-REV="${E}[7m"
-ITAL="${E}[3m"
-UNDR="${E}[4m"
-BLNK="${E}[5m"
-
 WB="${E}[1;44;37m"
 BW="${E}[0;47;34m"
 
-# Two charset.
+# Two charsets.
 G0=$(printf "\017")
 G1=$(printf "\016")
 
-# Usually you can access graphic chars on table a, charset G0
-#DRAW="${E}(0"
-#TEXT="${E}(B"
-# But openwrt zipit only seems to have graphic chars on charset G1
+# openwrt zipit only seems to have graphic chars on charset G1
 DRAW="${G1}${E})0"
 TEXT="${G0}${E}(B"
 
-#NICK="zippy"
-DSRV="irc.freenode.net"
-SERV=$DSRV
-PORT=6667
+# $I and $J are global widget indices.
 
 printat()
 {
-  printf "${ESC}[%d;%dH" ${1:-1} ${2:-1}
+  printf "${E}[%d;%dH" ${1:-1} ${2:-1}
   [ $# -gt 2 ] && {
     shift 2
     printf "%s" "$*"
   }
 }
 
-sreplace()
+get_key() # Skips Space and NL, but works in ash without stty.
 {
-  S1=$(expr substr "$STR" 1 $1)
-  [ $# -lt 2 ] && S1=$(expr substr $STR 1 $(($1 - 1)))
-  S2=$(expr substr "$STR" $(($1 + 1)) ${#STR})
-  STR="${S1}${2}${S2}"
-}
-
-cursor()
-{
-  case $1 in
-    0) printf "${ESC}[?25l" ;;
-    *) printf "${ESC}[?12l${ESC}[?25h" ;;
-  esac
-}
-
-bold()
-{
-  case $1 in
-    0) printf "${ESC}[22m" ;;
-    *) printf "${ESC}[1m" ;;
-  esac
-}
-
-get() ## get a single keystroke from stdin without waiting
-{
-  if [ -t 0 ]
-  then
-    if [ -z "$_STTY" ]
-    then
-      _STTY=$(stty -g)
-      stty -echo -icanon time ${GET_TMOUT:-0} min ${GET_MIN:-0}
-    elif [ -n "$GET_TMOUT$GET_MIN" ]
-    then
-      stty -echo -icanon time ${GET_TMOUT:-0} min ${GET_MIN:-0}
-    fi
-  fi
-#  _KEY=$(dd bs=1 count=1  2>/dev/null; printf '.')
-  _KEY=$(dd bs=1 count=1  2>/dev/null; echo '.')
-  _KEY=${_KEY%.}
-  [ -n "$_KEY" ]
-}
-
-get_key()
-{
-  while :
-  do
-    GET_TMOUT=5 get && break ## Half second timeout on each loop
-  done
-
-  case $_KEY in
-  "${ESC}")
-    stty -echo -icanon time 0 min 0
-    read _KEY
-    if [ -z "$_KEY" ] 
-    then
-#      _KEY='?'
-      _KEY="${ESC}"
-    fi
+  read -rsn1 _KEY
+  case "${_KEY}" in
+     "${E}") _K=""; read -n1 -t1 _K; _KEY="${E}${_K}"; 
+	[ -n "_K" ] && { _K=""; read -n1 -t1 _K; _KEY="${_KEY}${_K}"; }
+  ;; "") _KEY=" "
   ;;
   esac
 }
 
+# Define TUI Widgets (Name, FieldLen, Location, EraseStr)
+# (no widget types needed for menu)
 
-get_k()
-{
-  if [ -z "$_STTY" ]
-  then
-    _STTY=$(stty -g)
-  fi
-  stty sane raw -nl -echo opost min 2 time 1
-  _KEY=$(dd bs=8 count=1 2>/dev/null; echo '.')
-  _KEY=${_KEY%.}
-
-  stty "$_STTY"
-}
-
-
-# Define TUI Widgets (Type, StrName, FieldLength, AtLoc, EmptyStr)
 ######   Message strings  ######
-WT1=s  WS1="";  WL1=49;  WA1="${E}[2;3H";   WE1="${WA1}$(printf "%-49s")${WA1}"
-WT2=s  WS2="";  WL2=49;  WA2="${E}[3;3H";   WE2="${WA2}$(printf "%-49s")${WA2}"
-WT3=s  WS3="";  WL3=49;  WA3="${E}[4;3H";   WE3="${WA3}$(printf "%-49s")${WA3}"
-WT4=s  WS4="";  WL4=49;  WA4="${E}[6;3H";   WE4="${WA4}$(printf "%-49s")${WA4}"
-WT5=s  WS5="";  WL5=49;  WA5="${E}[7;3H";   WE5="${WA5}$(printf "%-49s")${WA5}"
-WT6=s  WS6="";  WL6=49;  WA6="${E}[8;3H";   WE6="${WA6}$(printf "%-49s")${WA6}"
-WT7=s  WS7="";  WL7=49;  WA7="${E}[9;3H";   WE7="${WA7}$(printf "%-49s")${WA7}"
-WT8=s  WS8="";  WL8=49;  WA8="${E}[11;3H";  WE8="${WA8}$(printf "%-49s")${WA8}"
-WT9=s  WS9="";  WL9=49;  WA9="${E}[12;3H";  WE9="${WA9}$(printf "%-49s")${WA9}"
-WT10=s WS10=""; WL10=49; WA10="${E}[13;3H"; WE10="${WA10}$(printf "%-49s")${WA10}"
-WT11=s WS11=""; WL11=49; WA11="${E}[14;3H"; WE11="${WA11}$(printf "%-49s")${WA11}"
+WS1="S1";  WL1=49;  WA1="${E}[2;3H";   WE1="${WA1}$(printf "%-49s")${WA1}"
+WS2="S2";  WL2=49;  WA2="${E}[3;3H";   WE2="${WA2}$(printf "%-49s")${WA2}"
+WS3="S3";  WL3=49;  WA3="${E}[4;3H";   WE3="${WA3}$(printf "%-49s")${WA3}"
+
+######   Menu Options  ######
+WS4="OP4";  WL4=49;  WA4="${E}[6;3H";   WE4="${WA4}$(printf "%-49s")${WA4}"
+WS5="OP5";  WL5=49;  WA5="${E}[7;3H";   WE5="${WA5}$(printf "%-49s")${WA5}"
+WS6="OP6";  WL6=49;  WA6="${E}[8;3H";   WE6="${WA6}$(printf "%-49s")${WA6}"
+WS7="OP7";  WL7=49;  WA7="${E}[9;3H";   WE7="${WA7}$(printf "%-49s")${WA7}"
+WS8="OP8";  WL8=49;  WA8="${E}[10;3H";  WE8="${WA8}$(printf "%-49s")${WA8}"
+WS9="OP9";  WL9=49;  WA9="${E}[11;3H";  WE9="${WA9}$(printf "%-49s")${WA9}"
+WS10="OP10"; WL10=49; WA10="${E}[12;3H"; WE10="${WA10}$(printf "%-49s")${WA10}"
+WS11="OP11"; WL11=49; WA11="${E}[13;3H"; WE11="${WA11}$(printf "%-49s")${WA11}"
+WS12="OP12"; WL12=49; WA12="${E}[14;3H"; WE12="${WA12}$(printf "%-49s")${WA12}"
 
 #######  Buttons  #######
 # Button text lengths (5 or 4 here) must fit in the boxes laid out in Draw mode below.
-WT20=b WS20="TASK1"; WL20=5;  WA20="${E}[17;8H";  WE20="${WA20}$(printf "%-${WL20}s")${WA20}"
-WT21=b WS21="TASK2"; WL21=5;  WA21="${E}[17;25H"; WE21="${WA21}$(printf "%-${WL21}s")${WA21}"
-WT22=b WS22="EXIT"; WL22=6;   WA22="${E}[17;41H"; WE22="${WA22}$(printf "%-${WL22}s")${WA22}"
+WS20="B1"; WL20=5;  WA20="${E}[17;8H";  WE20="${WA20}$(printf "%-${WL20}s")${WA20}"
+WS21="B2"; WL21=4;  WA21="${E}[17;25H"; WE21="${WA21}$(printf "%-${WL21}s")${WA21}"
+WS22="B3"; WL22=6;   WA22="${E}[17;41H"; WE22="${WA22}$(printf "%-${WL22}s")${WA22}"
 
-TASK1="Sleep"; TASK2="Stop"; EXIT="Cancel"
+B1="Sleep"; B2="Stop"; B3="Cancel"
 ###################
 ShowTUI()
 {
-printf "${ESC}[2J"
+printf "${E}[2J"
 
 # Must use UPPERCASE for words in DRAW mode.  Or add labels later.
-# NOTE: see how the cfaj code makes variable sized boxes.
 printat 1 1  "$WB$DRAW"
 echo "lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk"
 echo "x                                                   x"
-echo "x                    SLEEP TIMER                    x"
+echo "x                                                   x"
 echo "x                                                   x"
 echo "tqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqu"
 echo "x                                                   x"
@@ -188,146 +96,134 @@ printf "$TEXT$WB"
 # 
 # Done with DRAW mode.  Now we can use lower case.
 #
-echo "${WE1}          Radio Sleep/Shutoff Timer"
-echo "${WE2}How long before the music stops?"
+echo "${WE1}            Radio Sleep/Shutoff Timer"
+echo "${WE3}How long before the music stops?"
+
+# These are my Menu options.  Draw the selected text BW reverse text.
+OP4="5 Minutes";
+OP5="10 Minutes";
+OP6="20 Minutes";
+OP7="30 minutes";
+OP8="45 minutes";
+OP9="1 Hour";
+OP10="2 Hours";
+OP11="3 Hours";
+OP12="User defined";
+
+echo "${WE4}${BW}${OP4}${WB}"
+echo "${WE5}${OP5}"
+echo "${WE6}${OP6}"
+echo "${WE7}${OP7}"
+echo "${WE8}${OP8}"
+echo "${WE9}${OP9}"
+echo "${WE10}${OP10}"
+echo "${WE11}${OP11}"
+echo "${WE12}${OP12}"
 
 # These are my buttons.  Draw the button text BW reverse text.
-printf "$BW"
-echo "${WE20}${TASK1}${WE21}${TASK2}${WE22}${EXIT}"
-#echo $N
+echo "${WE20}${BW}${B1}${WB}${WE21}${B2}${WE22}${B3}"
 }
 
 # Boolean/PushButton handler
 button()
 {
-  [ "$WT" != "b" ] && return
-  case $J in 
-    20) echo "printat 10 24 \"Task = 1\"" ; return ;; # Do something for task1
-    21) echo "printat 10 24 \"Task = 2\"" ; return ;; # Do something for task1
+  eval SP=\$WS$J
+  eval STR=\$"$SP"
+  case $I in 
+    20) echo "STR=\"$STR\"; break" ; return ;;
+    21) echo "break" ; return ;; 
     22) echo "break" ; return ;; 
   esac
-  #case $_KEY in ${NL}) return ;; esac
-  #case "$STR" in y*|Y*) STR="no " ;; *) STR="yes" ;; esac
-  #eval SP=\$WS$J; eval $SP="$STR"
-  #echo "printat $y $xo '${STR}'"
 }
 
-################## Now draw and run the TUI.
+#######
 ShowTUI
 
-# Hide cursor.
-#cursor 0
-
-# Initial setup: Widget=WT20, cursor at (y,x) and x-old, Name=TASK1, type=button
-J=20
-y=17
-x=8
-xo=8
-STR="TASK1"
-WT=b
+# Initial setup.  Start at 1st menu op and button.
+J=4
+I=20; y=17; x=8
+eval SP=\$WS$I
+eval STR=\$"$SP"
 
 # Run main dialog box until ESC
 while :
 do
 printat $y $x
-#get_key
-get_k
+get_key
 MV=0 # Handle widget traversal (UP,DN,TAB).
 case $_KEY in
-   " ")printat 1 24 "key=[SP]" ; eval $(button)
-;; ${NL})printat 1 24 "key=[NL]" ; eval $(button)
-        eval SP=\$WS$J; eval $SP="$STR"
-	x=$xo
-;; "${ESC}") MV=$J break
-#;; "${ESC}[A")printat 1 24 "key=[UP]" ; MV=$J
-#        [ "$J" -eq 12 ] && J=8
-#        [ "$J" -eq 16 ] && J=8
-#        [ "$J" -gt 19 ] && J=12
-#        J=$(($J - 1))
-#;; "${ESC}[B")printat 1 24 "key=[DN]" ; MV=$J
-#        [ "$J" -eq 11 ] && J=20
-#        [ "$J" -eq 15 ] && J=20
-#        [ "$J" -le 19 ] && J=$(($J + 1))
-#;; "${TAB}")printat 1 24 "key=[TB]" ; MV=$J
-#	case $J in 
-#          22) J=1 ;; 
-#          [89]|1[0-5]) J=$(($J + 4)) ;; 
-#          1[6-8]) J=$(($J - 7)) ;; 
-#          *) J=$(($J + 1)) ;; 
-#	esac
-#;; "${ESC}[5~")printat 1 24 "key=[V+]"
-#;; "${ESC}[6~")printat 1 24 "key=[V-]"
-#;; "${ESC}[1~")printat 1 24 "key=[HM]"
-#;; "${ESC}[4~")printat 1 24 "key=[EN]"
-;; "${ESC}[C")printat 1 24 "key=[>>]"
-        [ "$WT" != "b" ] && [ $x -lt $((${#STR} + $xo)) ] && x=$(($x + 1))
-        [ "$WT" = "b" ] && [ $J -ge 12 ] && [ $J -le 15 ] && {
-          MV=$J ; J=$(($J + 4)) 
-	}
-        [ "$WT" = "b" ] && [ $J -ge 20 ] && [ $J -le 22 ] && {
-          MV=$J ; J=$(($J + 1)) 
-        }
-;; "${ESC}[D")printat 1 24 "key=[<<]"
-        [ "$WT" != "b" ] && [ $x -gt $xo ] && x=$(($x - 1))
-        [ "$WT" = "b" ] && [ $J -ge 12 ] && [ $J -le 15 ] && {
-          MV=$J ; J=$(($J - 4)) 
-	}
-        [ "$WT" = "b" ] && [ $J -gt 20 ] && {
-          MV=$J ; J=$(($J - 1)) 
-        }
-;; "${C_D}")printat 1 24 "key=[^D]"
-;; "${C_H}")printat 1 24 "key=[^H]"
-;; "${BS}")printat 1 24 "key=[BS]"
-	[ "$WT" != "b" ] && [ $x -gt $xo ] && {
-          sreplace $(($x - $xo))
-	  x=$(($x - 1))
-          printat $y $xo "$STR "
-        }
-;; [[:cntrl:]]) printat 1 24 "key=[CTL]"
-;; [[:graph:]]) printat 1 24 "key=[${_KEY}]"
-        case $_KEY in .|-|_) ;; [[:punct:]]) continue ;; esac
-	[ "$WT" = "i" ] && { case $_KEY in [0-9]) ;; *) continue ;; esac }
-	[ "$WT" != "b" ] && {
-          sreplace $(($x - $xo)) "${_KEY}"
-          printat $y $xo $STR 
-	  x=$(($x + 1))
-        }
-	[ "$WT" = "b" ] && [ $J -le 19 ] && {
-          case $_KEY in y|Y) STR="yes" ;; *) STR="no " ;; esac
-          printat $y $xo "${STR}"
-	  eval SP=\$WS$J; eval $SP="$STR"
-	}
-;; "${ESC}"*)printat 1 24 "key=[E-X]"
-;; *)printat 1 24 "key=[HUH]"
+   " ") eval $(button)
+;; ${NL}) eval $(button)
+;; "${E}") STR="Cancel"; break
+;; "${E}[A") MV=$J ; J=$(($J - 1)) #UP
+;; "${E}[B") MV=$J ; J=$(($J + 1)) #DN
+;; "${E}[C") MV=$I ; I=$(($I + 1)) #>>
+;; "${E}[D") MV=$I ; I=$(($I - 1)) #<<
 ;;
 esac
 
 # Set x and y if traversing between widgets
 if [ $MV -ne 0 ] ; then
-  # Clear and restore old widget to STR before moving on.
+  # Clear and restore old menu option before moving on.
   eval WE=\$WE$MV
   eval SP=\$WS$MV
   eval STR=\$"$SP"
-  echo "${WE}${STR}"
-  # Traverse
-  if [ "$J" -lt 20 ] ; then J=20
-  elif [ "$J" -gt 22 ] ; then J=22
+  echo "${WB}${WE}${STR}${BW}"
+  if [ $MV -lt 20 ] ; then # Switch Menu Option
+    [ "$J" -lt 4 ] && J=4
+    [ "$J" -gt 12 ] && J=12
+    y=$(($J + 2));  x=3
+    eval SP=\$WS$J
+    eval STR=\$"$SP"
+    printat $y $x $STR
   fi
-  if [ "$J" -eq 20 ] ; then y=17; x=8
-  elif [ "$J" -eq 21 ] ; then y=17; x=25
-  elif [ "$J" -eq 22 ] ; then y=17; x=41
+  # Always redraw button last
+  [ "$I" -lt 20 ] && I=20
+  [ "$I" -gt 22 ] && I=22
+  if [ "$I" -eq 20 ] ; then y=17; x=8
+  elif [ "$I" -eq 21 ] ; then y=17; x=25
+  elif [ "$I" -eq 22 ] ; then y=17; x=41
   fi
-  xo=$x
-  eval SP=\$WS$J
+  eval SP=\$WS$I
   eval STR=\$"$SP"
-  printat $y $xo $STR
-  eval WT=\$WT$J
+  printat $y $x $STR
 fi
 done
 
-# Goto top left corner (1,1), set normal text, fix tty, turn on the cursor.
+# Go to top left (1,1), set normal text, fix tty
 printat 1 1 $N
 stty sane
 clear
-cursor 1
 
+# Act on selection.
+var=$(IFS=" " ; set -- $STR ; echo $1)
+
+pidfile="/tmp/apps/sleeptimer"
+
+if [ "$var" = "Stop" ]; then
+  if [ -e "$pidfile" ]; then
+    kill `cat "$pidfile"`
+    rm "$pidfile"
+    echo "Sleep timer stopped"
+  else
+    echo "Sleep timer not running"
+  fi
+  sleep 3
+  exit 0
+elif [ "$var" = "User" ] 2>/dev/null; then
+  echo "How many minutes before the music stops?"
+  read var
+elif [ "$var" -lt 5 ] 2>/dev/null; then
+  var=$(( var * 60  )) # Convert hours to minutes
+fi
+if [ "$var" -eq "$var" ] 2>/dev/null; then
+  deallocvt
+  # Sleep, then run onStop
+  openvt -- sleeptimer $var
+  echo "Timer set for $var minutes"
+else
+  # Not a number or user cancelled
+  echo "Invalid time or cancelled"
+fi
+
+sleep 3
