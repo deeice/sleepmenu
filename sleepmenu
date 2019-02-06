@@ -54,33 +54,32 @@ ROW="${S%;*}"
 Y=$((($ROW - 19) / 2 + 1))
 X=$((($COL - 45) / 2 + 1))
 
-# Define TUI Widgets (Name, FieldLen, Location, EraseStr)
-# (no widget types needed for menu)
+# Define TUI Widgets (Location, EraseStr, String)
+# (no widget names, types, or lengths needed for simple menu)
 x=$(($X + 1))
 ######   Message strings  ######
 S41="$(printf "%-41s")"
-WS1="S1"; WL1=41; WA1="${E}[$(($Y + 2));${x}H";  WE1="$WA1$S41$WA1"
-WS2="S2"; WL2=41; WA2="${E}[$(($Y + 3));${x}H";  WE2="$WA2$S41$WA2"
-WS3="S3"; WL3=41; WA3="${E}[$(($Y + 4));${x}H";  WE3="$WA3$S41$WA3"
+WA1="${E}[$(($Y + 2));${x}H";  WE1="$WA1$S41$WA1"
+WA2="${E}[$(($Y + 3));${x}H";  WE2="$WA2$S41$WA2"
+WA3="${E}[$(($Y + 4));${x}H";  WE3="$WA3$S41$WA3"
 ######   Menu Options  ######
 x=$(($X + 2))
-WS4="OP4"; WL4=41; WA4="${E}[$(($Y + 6));${x}H"; WE4="$WA4$S41$WA4"
-WS5="OP5"; WL5=41; WA5="${E}[$(($Y + 7));${x}H"; WE5="$WA5$S41$WA5"
-WS6="OP6"; WL6=41; WA6="${E}[$(($Y + 8));${x}H"; WE6="$WA6$S41$WA6"
-WS7="OP7"; WL7=41; WA7="${E}[$(($Y + 9));${x}H"; WE7="$WA7$S41$WA7"
-WS8="OP8"; WL8=41; WA8="${E}[$(($Y + 10));${x}H"; WE8="$WA8$S41$WA8"
-WS9="OP9"; WL9=41; WA9="${E}[$(($Y + 11));${x}H"; WE9="$WA9$S41$WA9"
-WS10="OP10"; WL10=41; WA10="${E}[$(($Y + 12));${x}H"; WE10="$WA10$S41$WA10"
-WS11="OP11"; WL11=41; WA11="${E}[$(($Y + 13));${x}H"; WE11="$WA11$S41$WA11"
-WS12="OP12"; WL12=41; WA12="${E}[$(($Y + 14));${x}H"; WE12="$WA12$S41$WA12"
+WA4="${E}[$(($Y + 6));${x}H";   WE4="$WA4$S41$WA4";    WS4="5 Minutes"
+WA5="${E}[$(($Y + 7));${x}H";   WE5="$WA5$S41$WA5";    WS5="10 Minutes"
+WA6="${E}[$(($Y + 8));${x}H";   WE6="$WA6$S41$WA6";    WS6="20 Minutes"
+WA7="${E}[$(($Y + 9));${x}H";   WE7="$WA7$S41$WA7";    WS7="30 minutes"
+WA8="${E}[$(($Y + 10));${x}H";  WE8="$WA8$S41$WA8";    WS8="45 minutes"
+WA9="${E}[$(($Y + 11));${x}H";  WE9="$WA9$S41$WA9";    WS9="1 Hour"
+WA10="${E}[$(($Y + 12));${x}H"; WE10="$WA10$S41$WA10"; WS10="2 Hours"
+WA11="${E}[$(($Y + 13));${x}H"; WE11="$WA11$S41$WA11"; WS11="3 Hours"
+WA12="${E}[$(($Y + 14));${x}H"; WE12="$WA12$S41$WA12"; WS12="User defined"
 #######  Buttons  #######
 # Button text lengths must fit in the boxes laid out in DRAW mode.
 y=$(($Y + 17)) 
-WS20="B1"; WL20=5; WA20="${E}[${y};$(($X + 5))H";  WE20="$WA20     $WA20"
-WS21="B2"; WL21=4; WA21="${E}[${y};$(($X + 20))H"; WE21="$WA21    $WA21"
-WS22="B3"; WL22=6; WA22="${E}[${y};$(($X + 34))H"; WE22="$WA22      $WA22"
+WA20="${E}[${y};$(($X + 5))H";  WE20="$WA20     $WA20";  WS20="Sleep"
+WA21="${E}[${y};$(($X + 20))H"; WE21="$WA21    $WA21";   WS21="Stop"
+WA22="${E}[${y};$(($X + 34))H"; WE22="$WA22      $WA22"; WS22="Cancel"
 
-B1="Sleep"; B2="Stop"; B3="Cancel"
 ###################
 ShowTUI()
 {
@@ -111,39 +110,28 @@ printf "$TEXT$WB"
 # 
 # Done with DRAW mode.  Now we can use lower case.
 #
-echo "${WE1}            Radio Sleep/Shutoff Timer"
+echo "${WE1}         Radio Sleep/Shutoff Timer"
 echo "${WE3}How long before the music stops?"
 
 # Menu options.  Draw the selected text BW reverse text.
-OP4="5 Minutes";
-OP5="10 Minutes";
-OP6="20 Minutes";
-OP7="30 minutes";
-OP8="45 minutes";
-OP9="1 Hour";
-OP10="2 Hours";
-OP11="3 Hours";
-OP12="User defined";
-
-echo "${WE4}${BW}${OP4}${WB}"
-echo "${WE5}${OP5}"
-echo "${WE6}${OP6}"
-echo "${WE7}${OP7}"
-echo "${WE8}${OP8}"
-echo "${WE9}${OP9}"
-echo "${WE10}${OP10}"
-echo "${WE11}${OP11}"
-echo "${WE12}${OP12}"
+echo "${WE4}${BW}${WS4}${WB}"
+echo "${WE5}${WS5}"
+echo "${WE6}${WS6}"
+echo "${WE7}${WS7}"
+echo "${WE8}${WS8}"
+echo "${WE9}${WS9}"
+echo "${WE10}${WS10}"
+echo "${WE11}${WS11}"
+echo "${WE12}${WS12}"
 
 # Draw selected button text BW reverse text.
-echo "${WE20}${BW}${B1}${WB}${WE21}${B2}${WE22}${B3}"
+echo "${WE20}${BW}${WS20}${WB}${WE21}${WS21}${WE22}${WS22}"
 }
 
 # Boolean/PushButton handler
 button()
 {
-  eval SP=\$WS$J
-  eval STR=\$"$SP"
+  eval STR=\$WS$J
   case $I in 
     20) echo "STR=\"$STR\"; break" ; return ;;
     21) echo "break" ; return ;; 
@@ -157,8 +145,7 @@ ShowTUI
 # Initial setup.  Start at 1st menu op and button.
 J=4
 I=20; y=17; x=5
-eval SP=\$WS$I
-eval STR=\$"$SP"
+eval STR=\$WS$I
 
 # Run main dialog box until ESC
 while :
@@ -181,15 +168,13 @@ esac
 if [ $MV -ne 0 ] ; then
   # Clear and restore old menu option before moving on.
   eval WE=\$WE$MV
-  eval SP=\$WS$MV
-  eval STR=\$"$SP"
+  eval STR=\$WS$MV
   echo "${WB}${WE}${STR}${BW}"
   if [ $MV -lt 20 ] ; then # Switch Menu Option
     [ "$J" -lt 4 ] && J=4
     [ "$J" -gt 12 ] && J=12
     y=$(($J + 2));  x=2
-    eval SP=\$WS$J
-    eval STR=\$"$SP"
+    eval STR=\$WS$J
     px $(($Y + $y)) $(($X + $x)) $STR
   fi
   # Always redraw button last
@@ -199,17 +184,18 @@ if [ $MV -ne 0 ] ; then
   elif [ "$I" -eq 21 ] ; then y=17; x=20
   elif [ "$I" -eq 22 ] ; then y=17; x=34
   fi
-  eval SP=\$WS$I
-  eval STR=\$"$SP"
+  eval STR=\$WS$I
   px $(($Y + $y)) $(($X + $x)) $STR
 fi
 done
 
+#######
 # Go to top left (1,1), set normal text, fix tty
 px 1 1 $N
 stty sane
 clear
 
+#######
 # Act on selection.
 var=$(IFS=" " ; set -- $STR ; echo $1)
 
