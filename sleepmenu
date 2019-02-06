@@ -1,4 +1,4 @@
-#!/bin/sh
+# Skip #!/bin/sh - Dash has issues with read options.  Bash, Ash are OK.
 
 # keys
 E=$(printf "\033")
@@ -20,7 +20,7 @@ TEXT="${G0}${E}(B"
 
 # $I and $J are global widget indices.
 
-printat()
+px() # printat y x
 {
   printf "${E}[%d;%dH" ${1:-1} ${2:-1}
   [ $# -gt 2 ] && {
@@ -40,30 +40,45 @@ get_key() # Skips Space and NL, but works in ash without stty.
   esac
 }
 
+##### Get TUI screen offset  ######
+_K=""
+echo -en "${E}[s${E}[999;999H${E}[6n${E}[u"
+read -sn6 -t1 S
+read -sn1 -t1 _K; S="${S}${_K}"; 
+[ -n "_K" ] && { _K=""; read -sn1 -t1 _K; S="${S}${_K}"; }
+
+S="${S#*[}"
+COL="${S#*;}"
+COL="${COL%*R}"
+ROW="${S%;*}"
+Y=$((($ROW - 19) / 2 + 1))
+X=$((($COL - 45) / 2 + 1))
+
 # Define TUI Widgets (Name, FieldLen, Location, EraseStr)
 # (no widget types needed for menu)
-
+x=$(($X + 1))
 ######   Message strings  ######
-WS1="S1";  WL1=49;  WA1="${E}[2;3H";   WE1="${WA1}$(printf "%-49s")${WA1}"
-WS2="S2";  WL2=49;  WA2="${E}[3;3H";   WE2="${WA2}$(printf "%-49s")${WA2}"
-WS3="S3";  WL3=49;  WA3="${E}[4;3H";   WE3="${WA3}$(printf "%-49s")${WA3}"
-
+S41="$(printf "%-41s")"
+WS1="S1"; WL1=41; WA1="${E}[$(($Y + 2));${x}H";  WE1="$WA1$S41$WA1"
+WS2="S2"; WL2=41; WA2="${E}[$(($Y + 3));${x}H";  WE2="$WA2$S41$WA2"
+WS3="S3"; WL3=41; WA3="${E}[$(($Y + 4));${x}H";  WE3="$WA3$S41$WA3"
 ######   Menu Options  ######
-WS4="OP4";  WL4=49;  WA4="${E}[6;3H";   WE4="${WA4}$(printf "%-49s")${WA4}"
-WS5="OP5";  WL5=49;  WA5="${E}[7;3H";   WE5="${WA5}$(printf "%-49s")${WA5}"
-WS6="OP6";  WL6=49;  WA6="${E}[8;3H";   WE6="${WA6}$(printf "%-49s")${WA6}"
-WS7="OP7";  WL7=49;  WA7="${E}[9;3H";   WE7="${WA7}$(printf "%-49s")${WA7}"
-WS8="OP8";  WL8=49;  WA8="${E}[10;3H";  WE8="${WA8}$(printf "%-49s")${WA8}"
-WS9="OP9";  WL9=49;  WA9="${E}[11;3H";  WE9="${WA9}$(printf "%-49s")${WA9}"
-WS10="OP10"; WL10=49; WA10="${E}[12;3H"; WE10="${WA10}$(printf "%-49s")${WA10}"
-WS11="OP11"; WL11=49; WA11="${E}[13;3H"; WE11="${WA11}$(printf "%-49s")${WA11}"
-WS12="OP12"; WL12=49; WA12="${E}[14;3H"; WE12="${WA12}$(printf "%-49s")${WA12}"
-
+x=$(($X + 2))
+WS4="OP4"; WL4=41; WA4="${E}[$(($Y + 6));${x}H"; WE4="$WA4$S41$WA4"
+WS5="OP5"; WL5=41; WA5="${E}[$(($Y + 7));${x}H"; WE5="$WA5$S41$WA5"
+WS6="OP6"; WL6=41; WA6="${E}[$(($Y + 8));${x}H"; WE6="$WA6$S41$WA6"
+WS7="OP7"; WL7=41; WA7="${E}[$(($Y + 9));${x}H"; WE7="$WA7$S41$WA7"
+WS8="OP8"; WL8=41; WA8="${E}[$(($Y + 10));${x}H"; WE8="$WA8$S41$WA8"
+WS9="OP9"; WL9=41; WA9="${E}[$(($Y + 11));${x}H"; WE9="$WA9$S41$WA9"
+WS10="OP10"; WL10=41; WA10="${E}[$(($Y + 12));${x}H"; WE10="$WA10$S41$WA10"
+WS11="OP11"; WL11=41; WA11="${E}[$(($Y + 13));${x}H"; WE11="$WA11$S41$WA11"
+WS12="OP12"; WL12=41; WA12="${E}[$(($Y + 14));${x}H"; WE12="$WA12$S41$WA12"
 #######  Buttons  #######
-# Button text lengths (5 or 4 here) must fit in the boxes laid out in Draw mode below.
-WS20="B1"; WL20=5;  WA20="${E}[17;8H";  WE20="${WA20}$(printf "%-${WL20}s")${WA20}"
-WS21="B2"; WL21=4;  WA21="${E}[17;25H"; WE21="${WA21}$(printf "%-${WL21}s")${WA21}"
-WS22="B3"; WL22=6;   WA22="${E}[17;41H"; WE22="${WA22}$(printf "%-${WL22}s")${WA22}"
+# Button text lengths must fit in the boxes laid out in DRAW mode.
+y=$(($Y + 17)) 
+WS20="B1"; WL20=5; WA20="${E}[${y};$(($X + 5))H";  WE20="$WA20     $WA20"
+WS21="B2"; WL21=4; WA21="${E}[${y};$(($X + 20))H"; WE21="$WA21    $WA21"
+WS22="B3"; WL22=6; WA22="${E}[${y};$(($X + 34))H"; WE22="$WA22      $WA22"
 
 B1="Sleep"; B2="Stop"; B3="Cancel"
 ###################
@@ -71,27 +86,27 @@ ShowTUI()
 {
 printf "${E}[2J"
 
-# Must use UPPERCASE for words in DRAW mode.  Or add labels later.
-printat 1 1  "$WB$DRAW"
-echo "lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk"
-echo "x                                                   x"
-echo "x                                                   x"
-echo "x                                                   x"
-echo "tqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqu"
-echo "x                                                   x"
-echo "x                                                   x"
-echo "x                                                   x"
-echo "x                                                   x"
-echo "x                                                   x"
-echo "x                                                   x"
-echo "x                                                   x"
-echo "x                                                   x"
-echo "x                                                   x"
-echo "tqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqu"
-echo "x    lqqqqqqqk        lqqqqqqqk       lqqqqqqqqk    x"
-echo "x    x       x        x       x       x        x    x"
-echo "x    mqqqqqqqj        mqqqqqqqj       mqqqqqqqqj    x"
-echo "mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj"
+# Must use UPPERCASE for any words in DRAW mode.  Or add labels later.
+px $(($Y + 0))  $X "$WB$DRAW"
+px $(($Y + 1))  $X "lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk"
+px $(($Y + 2))  $X "x                                           x"
+px $(($Y + 3))  $X "x                                           x"
+px $(($Y + 4))  $X "x                                           x"
+px $(($Y + 5))  $X "tqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqu"
+px $(($Y + 6))  $X "x                                           x"
+px $(($Y + 7))  $X "x                                           x"
+px $(($Y + 8))  $X "x                                           x"
+px $(($Y + 9))  $X "x                                           x"
+px $(($Y + 10)) $X "x                                           x"
+px $(($Y + 11)) $X "x                                           x"
+px $(($Y + 12)) $X "x                                           x"
+px $(($Y + 13)) $X "x                                           x"
+px $(($Y + 14)) $X "x                                           x"
+px $(($Y + 15)) $X "tqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqu"
+px $(($Y + 16)) $X "x  lqqqqqqqk      lqqqqqqqk     lqqqqqqqqk  x"
+px $(($Y + 17)) $X "x  x       x      x       x     x        x  x"
+px $(($Y + 18)) $X "x  mqqqqqqqj      mqqqqqqqj     mqqqqqqqqj  x"
+px $(($Y + 19)) $X "mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj"
 printf "$TEXT$WB"
 # 
 # Done with DRAW mode.  Now we can use lower case.
@@ -99,7 +114,7 @@ printf "$TEXT$WB"
 echo "${WE1}            Radio Sleep/Shutoff Timer"
 echo "${WE3}How long before the music stops?"
 
-# These are my Menu options.  Draw the selected text BW reverse text.
+# Menu options.  Draw the selected text BW reverse text.
 OP4="5 Minutes";
 OP5="10 Minutes";
 OP6="20 Minutes";
@@ -120,7 +135,7 @@ echo "${WE10}${OP10}"
 echo "${WE11}${OP11}"
 echo "${WE12}${OP12}"
 
-# These are my buttons.  Draw the button text BW reverse text.
+# Draw selected button text BW reverse text.
 echo "${WE20}${BW}${B1}${WB}${WE21}${B2}${WE22}${B3}"
 }
 
@@ -141,14 +156,14 @@ ShowTUI
 
 # Initial setup.  Start at 1st menu op and button.
 J=4
-I=20; y=17; x=8
+I=20; y=17; x=5
 eval SP=\$WS$I
 eval STR=\$"$SP"
 
 # Run main dialog box until ESC
 while :
 do
-printat $y $x
+px $(($Y + $y)) $(($X + $x))
 get_key
 MV=0 # Handle widget traversal (UP,DN,TAB).
 case $_KEY in
@@ -172,26 +187,26 @@ if [ $MV -ne 0 ] ; then
   if [ $MV -lt 20 ] ; then # Switch Menu Option
     [ "$J" -lt 4 ] && J=4
     [ "$J" -gt 12 ] && J=12
-    y=$(($J + 2));  x=3
+    y=$(($J + 2));  x=2
     eval SP=\$WS$J
     eval STR=\$"$SP"
-    printat $y $x $STR
+    px $(($Y + $y)) $(($X + $x)) $STR
   fi
   # Always redraw button last
   [ "$I" -lt 20 ] && I=20
   [ "$I" -gt 22 ] && I=22
-  if [ "$I" -eq 20 ] ; then y=17; x=8
-  elif [ "$I" -eq 21 ] ; then y=17; x=25
-  elif [ "$I" -eq 22 ] ; then y=17; x=41
+  if [ "$I" -eq 20 ] ; then y=17; x=5
+  elif [ "$I" -eq 21 ] ; then y=17; x=20
+  elif [ "$I" -eq 22 ] ; then y=17; x=34
   fi
   eval SP=\$WS$I
   eval STR=\$"$SP"
-  printat $y $x $STR
+  px $(($Y + $y)) $(($X + $x)) $STR
 fi
 done
 
 # Go to top left (1,1), set normal text, fix tty
-printat 1 1 $N
+px 1 1 $N
 stty sane
 clear
 
@@ -227,3 +242,4 @@ else
 fi
 
 sleep 3
+
