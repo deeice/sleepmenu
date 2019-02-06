@@ -1,7 +1,7 @@
 #!/bin/sh
 
-# The stock zipit ramdisk /bin/sh uses "\c" at end of line to suppress newlines.
-# Oher shells use -ne and -e.  So either define c or the other two.
+# The ramdisk /bin/sh uses "\c" at end of line to suppress newlines.
+# Oher shells use -ne and -e.  So define c or the other two.
 #c=\\c
 ne=-ne; e=-e
 
@@ -33,8 +33,16 @@ BLNK="${E}[5m"
 WB="${E}[1;44;37m"
 BW="${E}[0;47;34m"
 
-DRAW="${E}(0"
-TEXT="${E}(B"
+# Two charset.
+G0=$(printf "\017")
+G1=$(printf "\016")
+
+# Usually you can access graphic chars on table a, charset G0
+#DRAW="${E}(0"
+#TEXT="${E}(B"
+# But openwrt zipit only seems to have graphic chars on charset G1
+DRAW="${G1}${E})0"
+TEXT="${G0}${E}(B"
 
 #NICK="zippy"
 DSRV="irc.freenode.net"
@@ -114,6 +122,20 @@ get_key()
 }
 
 
+get_k()
+{
+  if [ -z "$_STTY" ]
+  then
+    _STTY=$(stty -g)
+  fi
+  stty sane raw -nl -echo opost min 2 time 1
+  _KEY=$(dd bs=8 count=1 2>/dev/null; echo '.')
+  _KEY=${_KEY%.}
+
+  stty "$_STTY"
+}
+
+
 # Define TUI Widgets (Type, StrName, FieldLength, AtLoc, EmptyStr)
 ######   Message strings  ######
 WT1=s  WS1="";  WL1=49;  WA1="${E}[2;3H";   WE1="${WA1}$(printf "%-49s")${WA1}"
@@ -131,10 +153,10 @@ WT11=s WS11=""; WL11=49; WA11="${E}[14;3H"; WE11="${WA11}$(printf "%-49s")${WA11
 #######  Buttons  #######
 # Button text lengths (5 or 4 here) must fit in the boxes laid out in Draw mode below.
 WT20=b WS20="TASK1"; WL20=5;  WA20="${E}[17;8H";  WE20="${WA20}$(printf "%-${WL20}s")${WA20}"
-WT21=b WS21="TASK2"; WL21=5;  WA21="${E}[17;26H"; WE21="${WA21}$(printf "%-${WL21}s")${WA21}"
-WT22=b WS22="EXIT"; WL22=4;   WA22="${E}[17;43H"; WE22="${WA22}$(printf "%-${WL22}s")${WA22}"
+WT21=b WS21="TASK2"; WL21=5;  WA21="${E}[17;25H"; WE21="${WA21}$(printf "%-${WL21}s")${WA21}"
+WT22=b WS22="EXIT"; WL22=6;   WA22="${E}[17;41H"; WE22="${WA22}$(printf "%-${WL22}s")${WA22}"
 
-TASK1="Task1"; TASK2="Task2"; EXIT="Exit"
+TASK1="Sleep"; TASK2="Stop"; EXIT="Cancel"
 ###################
 ShowTUI()
 {
@@ -145,7 +167,7 @@ printf "${ESC}[2J"
 printat 1 1  "$WB$DRAW"
 echo "lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk"
 echo "x                                                   x"
-echo "x               MESSAGE WITH BUTTONS                x"
+echo "x                    SLEEP TIMER                    x"
 echo "x                                                   x"
 echo "tqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqu"
 echo "x                                                   x"
@@ -158,15 +180,16 @@ echo "x                                                   x"
 echo "x                                                   x"
 echo "x                                                   x"
 echo "tqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqu"
-echo "x    lqqqqqqqk         lqqqqqqqk        lqqqqqqk    x"
-echo "x    x       x         x       x        x      x    x"
-echo "x    mqqqqqqqj         mqqqqqqqj        mqqqqqqj    x"
+echo "x    lqqqqqqqk        lqqqqqqqk       lqqqqqqqqk    x"
+echo "x    x       x        x       x       x        x    x"
+echo "x    mqqqqqqqj        mqqqqqqqj       mqqqqqqqqj    x"
 echo "mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj"
 printf "$TEXT$WB"
 # 
 # Done with DRAW mode.  Now we can use lower case.
 #
-echo "${WE5}Press some buttons and see what happens."
+echo "${WE1}          Radio Sleep/Shutoff Timer"
+echo "${WE2}How long before the music stops?"
 
 # These are my buttons.  Draw the button text BW reverse text.
 printf "$BW"
@@ -207,20 +230,21 @@ WT=b
 while :
 do
 printat $y $x
-get_key
+#get_key
+get_k
 MV=0 # Handle widget traversal (UP,DN,TAB).
 case $_KEY in
    " ")printat 1 24 "key=[SP]" ; eval $(button)
 ;; ${NL})printat 1 24 "key=[NL]" ; eval $(button)
         eval SP=\$WS$J; eval $SP="$STR"
 	x=$xo
-;; "${ESC}") MV=$J #break
-#;; '[A')printat 1 24 "key=[UP]" ; MV=$J
+;; "${ESC}") MV=$J break
+#;; "${ESC}[A")printat 1 24 "key=[UP]" ; MV=$J
 #        [ "$J" -eq 12 ] && J=8
 #        [ "$J" -eq 16 ] && J=8
 #        [ "$J" -gt 19 ] && J=12
 #        J=$(($J - 1))
-#;; '[B')printat 1 24 "key=[DN]" ; MV=$J
+#;; "${ESC}[B")printat 1 24 "key=[DN]" ; MV=$J
 #        [ "$J" -eq 11 ] && J=20
 #        [ "$J" -eq 15 ] && J=20
 #        [ "$J" -le 19 ] && J=$(($J + 1))
@@ -231,11 +255,11 @@ case $_KEY in
 #          1[6-8]) J=$(($J - 7)) ;; 
 #          *) J=$(($J + 1)) ;; 
 #	esac
-#;; '[5~')printat 1 24 "key=[V+]"
-#;; '[6~')printat 1 24 "key=[V-]"
-#;; '[1~')printat 1 24 "key=[HM]"
-#;; '[4~')printat 1 24 "key=[EN]"
-;; '[C')printat 1 24 "key=[>>]"
+#;; "${ESC}[5~")printat 1 24 "key=[V+]"
+#;; "${ESC}[6~")printat 1 24 "key=[V-]"
+#;; "${ESC}[1~")printat 1 24 "key=[HM]"
+#;; "${ESC}[4~")printat 1 24 "key=[EN]"
+;; "${ESC}[C")printat 1 24 "key=[>>]"
         [ "$WT" != "b" ] && [ $x -lt $((${#STR} + $xo)) ] && x=$(($x + 1))
         [ "$WT" = "b" ] && [ $J -ge 12 ] && [ $J -le 15 ] && {
           MV=$J ; J=$(($J + 4)) 
@@ -243,7 +267,7 @@ case $_KEY in
         [ "$WT" = "b" ] && [ $J -ge 20 ] && [ $J -le 22 ] && {
           MV=$J ; J=$(($J + 1)) 
         }
-;; '[D')printat 1 24 "key=[<<]"
+;; "${ESC}[D")printat 1 24 "key=[<<]"
         [ "$WT" != "b" ] && [ $x -gt $xo ] && x=$(($x - 1))
         [ "$WT" = "b" ] && [ $J -ge 12 ] && [ $J -le 15 ] && {
           MV=$J ; J=$(($J - 4)) 
@@ -273,6 +297,7 @@ case $_KEY in
           printat $y $xo "${STR}"
 	  eval SP=\$WS$J; eval $SP="$STR"
 	}
+;; "${ESC}"*)printat 1 24 "key=[E-X]"
 ;; *)printat 1 24 "key=[HUH]"
 ;;
 esac
@@ -289,8 +314,8 @@ if [ $MV -ne 0 ] ; then
   elif [ "$J" -gt 22 ] ; then J=22
   fi
   if [ "$J" -eq 20 ] ; then y=17; x=8
-  elif [ "$J" -eq 21 ] ; then y=17; x=26
-  elif [ "$J" -eq 22 ] ; then y=17; x=43
+  elif [ "$J" -eq 21 ] ; then y=17; x=25
+  elif [ "$J" -eq 22 ] ; then y=17; x=41
   fi
   xo=$x
   eval SP=\$WS$J
