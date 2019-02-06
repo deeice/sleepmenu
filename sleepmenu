@@ -1,0 +1,452 @@
+#!/bin/sh
+
+# The ramdisk /bin/sh uses "\c" at end of line to suppress newlines.
+# Oher shells use -ne and -e.  So define c or the other two.
+#c=\\c
+ne=-ne; e=-e
+
+E=$(printf "\033")
+ESC=$(printf "\033")
+C_D=$(printf "\004")
+C_H=$(printf "\010")
+TAB=$(printf "\011")
+BS=$(printf "\177")
+NL='
+'
+
+# ANSI colors (darK,Red,Green,Yellow,Blue,Magenta,Cyan,White,Normal)
+K="${E}[1;30m"
+R="${E}[1;31m"
+G="${E}[1;32m"
+Y="${E}[1;33m"
+B="${E}[1;34m"
+M="${E}[1;35m"
+C="${E}[1;36m"
+W="${E}[1;37m"
+N="${E}[0m"
+BOLD="${E}[1m"
+REV="${E}[7m"
+ITAL="${E}[3m"
+UNDR="${E}[4m"
+BLNK="${E}[5m"
+
+WB="${E}[1;44;37m"
+BW="${E}[0;47;34m"
+
+DRAW="${E}(0"
+TEXT="${E}(B"
+
+#NICK="zippy"
+DSRV="irc.freenode.net"
+SERV=$DSRV
+PORT=6667
+
+printat()
+{
+  printf "${ESC}[%d;%dH" ${1:-1} ${2:-1}
+  [ $# -gt 2 ] && {
+    shift 2
+    printf "%s" "$*"
+  }
+}
+
+sreplace()
+{
+  S1=$(expr substr "$STR" 1 $1)
+  [ $# -lt 2 ] && S1=$(expr substr $STR 1 $(($1 - 1)))
+  S2=$(expr substr "$STR" $(($1 + 1)) ${#STR})
+  STR="${S1}${2}${S2}"
+}
+
+cursor()
+{
+  case $1 in
+    0) printf "${ESC}[?25l" ;;
+    *) printf "${ESC}[?12l${ESC}[?25h" ;;
+  esac
+}
+
+bold()
+{
+  case $1 in
+    0) printf "${ESC}[22m" ;;
+    *) printf "${ESC}[1m" ;;
+  esac
+}
+
+get() ## get a single keystroke from stdin without waiting
+{
+  if [ -t 0 ]
+  then
+    if [ -z "$_STTY" ]
+    then
+      _STTY=$(stty -g)
+      stty -echo -icanon time ${GET_TMOUT:-0} min ${GET_MIN:-0}
+    elif [ -n "$GET_TMOUT$GET_MIN" ]
+    then
+      stty -echo -icanon time ${GET_TMOUT:-0} min ${GET_MIN:-0}
+    fi
+  fi
+#  _KEY=$(dd bs=1 count=1  2>/dev/null; printf '.')
+  _KEY=$(dd bs=1 count=1  2>/dev/null; echo '.')
+  _KEY=${_KEY%.}
+  [ -n "$_KEY" ]
+}
+
+get_key()
+{
+  while :
+  do
+    GET_TMOUT=5 get && break ## Half second timeout on each loop
+  done
+
+  case $_KEY in
+  "${ESC}")
+    stty -echo -icanon time 0 min 0
+    read _KEY
+    if [ -z "$_KEY" ] 
+    then
+#      _KEY='?'
+      _KEY="${ESC}"
+    fi
+  ;;
+  esac
+}
+
+
+# Define TUI Widgets (Type, StrName, FieldLength, AtLoc, EmptyStr)
+WT1=s  WS1="NICK";  WL1=39;  WA1="${E}[2;13H";   WE1="${WA1}$(printf "%-39s")${WA1}"
+WT2=b  WS2="ID";    WL2=39;  WA2="${E}[3;13H";   WE2="${WA2}$(printf "%-39s")${WA2}"
+WT1=s  WS3="IPAS";  WL3=39;  WA3="${E}[4;13H";   WE3="${WA3}$(printf "%-39s")${WA3}"
+WT4=s  WS4="SERV";  WL4=39;  WA4="${E}[6;13H";   WE4="${WA4}$(printf "%-39s")${WA4}"
+WT5=i  WS5="PORT";  WL5=39;  WA5="${E}[7;13H";   WE5="${WA5}$(printf "%-39s")${WA5}"
+WT6=b  WS6="NPAS";  WL6=39;  WA6="${E}[8;13H";   WE6="${WA6}$(printf "%-39s")${WA6}"
+WT7=s  WS7="PASS";  WL7=39;  WA7="${E}[9;13H";   WE7="${WA7}$(printf "%-39s")${WA7}"
+WT8=s  WS8="CH1";   WL8=24;  WA8="${E}[11;3H";   WE8="${WA8}$(printf "%-24s")${WA8}"
+WT9=s  WS9="CH2";   WL9=24;  WA9="${E}[12;3H";   WE9="${WA9}$(printf "%-24s")${WA9}"
+WT10=s WS10="CH3";  WL10=24; WA10="${E}[13;3H";  WE10="${WA10}$(printf "%-24s")${WA10}"
+WT11=s WS11="CH4";  WL11=24; WA11="${E}[14;3H";  WE11="${WA11}$(printf "%-24s")${WA11}"
+WT12=b WS12="NK1";  WL12=3;  WA12="${E}[11;32H"; WE12="${WA12}$(printf "%-3s")${WA12}"
+WT13=b WS13="NK2";  WL13=3;  WA13="${E}[12;32H"; WE13="${WA13}$(printf "%-3s")${WA13}"
+WT14=b WS14="NK3";  WL14=3;  WA14="${E}[13;32H"; WE14="${WA14}$(printf "%-3s")${WA14}"
+WT15=b WS15="NK4";  WL15=3;  WA15="${E}[14;32H"; WE15="${WA15}$(printf "%-3s")${WA15}"
+WT16=s WS16="KEY1"; WL16=15; WA16="${E}[11;37H"; WE16="${WA16}$(printf "%-15s")${WA16}"
+WT17=s WS17="KEY2"; WL17=15; WA17="${E}[12;37H"; WE17="${WA17}$(printf "%-15s")${WA17}"
+WT18=s WS18="KEY3"; WL18=15; WA18="${E}[13;37H"; WE18="${WA18}$(printf "%-15s")${WA18}"
+WT19=s WS19="KEY4"; WL19=15; WA19="${E}[14;37H"; WE19="${WA19}$(printf "%-15s")${WA19}"
+
+WT20=b WS20="SAVE"; WL20=4;   WA20="${E}[17;8H"; WE20="${WA20}$(printf "%-4s")${WA20}"
+WT21=b WS21="SAVEAS"; WL21=6; WA21="${E}[17;25H"; WE21="${WA21}$(printf "%-6s")${WA21}"
+WT22=b WS22="EXIT"; WL22=4;   WA22="${E}[17;43H"; WE22="${WA22}$(printf "%-4s")${WA22}"
+
+SAVE="Save"; SAVEAS="SaveAs"; EXIT="Exit"
+###################
+ShowTUI()
+{
+printf "${ESC}[2J"
+
+# Must use UPPERCASE for words in DRAW mode.  Or add labels later.
+# NOTE: see how the cfaj code makes variable sized boxes.
+printat 1 1  "$WB$DRAW"
+echo "lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk"
+echo "x NICK                                              x"
+echo "x IDENTIFY                                          x"
+echo "x PASSWORD                                          x"
+echo "tqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqu"
+echo "x SERVER                                            x"
+echo "x PORT                                              x"
+echo "x NEEDPASS                                          x"
+echo "x PASSWORD                                          x"
+echo "t CHANNELS  qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqu"
+echo "x                          KEY                      x"
+echo "x                          KEY                      x"
+echo "x                          KEY                      x"
+echo "x                          KEY                      x"
+echo "tqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqu"
+echo "x    lqqqqqqk         lqqqqqqqqk        lqqqqqqk    x"
+echo "x    x      x         x        x        x      x    x"
+echo "x    mqqqqqqj         mqqqqqqqqj        mqqqqqqj    x"
+echo "mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj"
+printf "$TEXT$BW"
+# 
+echo "${WE1}${NICK}"
+echo "${WE2}${ID}"
+echo "${WE3}${IPAS}"
+echo "${WE4}${SERV}"
+echo "${WE5}${PORT}"
+echo "${WE6}${NPAS}"
+echo "${WE7}${PASS}"
+echo "${WE8}${CH1}${WE12}${NK1}${WE16}${KEY1}"
+echo "${WE9}${CH2}${WE13}${NK2}${WE17}${KEY2}"
+echo "${WE10}${CH3}${WE14}${NK3}${WE18}${KEY3}"
+echo "${WE11}${CH4}${WE15}${NK4}${WE19}${KEY4}"
+
+echo "${WE20}${SAVE}${WE21}${SAVEAS}${WE22}${EXIT}"
+#echo $N
+}
+
+# Boolean/PushButton handler
+button()
+{
+  [ "$WT" != "b" ] && return
+  case $J in 20) echo "break" ; return ;; 
+    21) echo "break" ; return ;;
+    22) echo "break" ; return ;; 
+  esac
+  #case $_KEY in ${NL}) return ;; esac
+  #case "$STR" in y*|Y*) STR="no " ;; *) STR="yes" ;; esac
+  #eval SP=\$WS$J; eval $SP="$STR"
+  #echo "printat $y $xo '${STR}'"
+}
+
+# Open the tinyirc wrapper script and read lines until one starts with tinyirc.
+IRC=/usr/local/bin/irc
+if [ -r $IRC ] ; then
+exec 3<$IRC
+# Find SERV NICK PORT
+while read line <&3
+do
+  if [ "${line%% *}" = "tinyirc" ] ; then
+    # Tries to remove the first word
+    CFG="${line#tinyirc }"
+    # Check if we removed anything
+    if [ "$CFG" != "$line" ] ; then
+      for ARG in $CFG
+      do 
+	case $ARG in 
+	  */*|*:*|*.*) SERV="$ARG" ;;
+	  -i) ID="yes" ;; 
+	  -*) ARGS="$ARGS $ARG" ;; 
+	  ''|*[!0-9]*) NICK="$ARG" ;; 
+	  *) PORT="$ARG" ;;
+	esac 
+      done
+    fi
+  fi
+done
+exec 3</dev/null
+fi
+
+# Remove irc:// from SERV
+case $SERV in 
+  *://*) SERV=${SERV#*://} ;;
+esac 
+# Split SERV at first / 
+case $SERV in 
+  */*) CHAN=${SERV#*/} ;;
+  *) CHAN="" ;;  
+esac 
+SERV=${SERV%%/*}
+# Split SERV at first :
+case $SERV in 
+  *:*) PORT=${SERV#*:} ; SERV=${SERV%%:*} ;;
+esac 
+
+# Get the channels
+J=1; while [ $J -lt 5 ]
+do
+  CH=${CHAN%%/*}
+  case $CHAN in 
+    */*) CHAN=${CHAN#*/} ;;
+    *) CHAN="" ;;
+  esac 
+  case $CH in 
+    *[\?\&,]*) OPTS=${CH#*[[\?\&,]} ; CH=${CH%%[\?\&,]*} ;;
+    *) OPTS="" ;;
+  esac
+  echo "$J CH=<$CH> OPTS=<$OPTS>"
+  if [ -n "$CH" ] ; then
+    eval CH$J=$CH ; eval OPTS$J=$OPTS ; 
+    case $OPTS in 
+      *key=*) CK=${OPTS#key=} ; CK=${CK#*[[\?\&,]} ; eval KEY$J=$CK ;;
+      *needkey*) eval NK$J="yes" ;;
+    esac
+    J=`expr $J + 1` ;
+  elif [ -z "$OPTS" ] ; then
+    J=`expr $J + 1` ;
+  else # We got some server opts (no channel)
+    SOPT="$SOPT,$OPTS"
+  fi
+  case $OPTS in 
+    *identify=*) IPAS=${OPTS#identify=} ; IPAS=${IPAS#*[[\?\&,]} ;;
+  esac
+  case $OPTS in 
+    *pass=*) PASS=${OPTS#pass=} ; PASS=${PASS#*[[\?\&,]} ;;
+    *needpass*) NPAS="yes" ;;
+  esac
+done
+
+# Check if various passwords are needed
+if [ -n "$ID" ] ; then ID="yes" ; 
+elif [ -n "$IPAS" ] ; then ID="yes" ; 
+else ID="no" ; 
+fi
+if [ -n "$NPAS" ] ; then NPAS="yes" ; 
+elif [ -n "$PASS" ] ; then NPAS="yes" ; 
+else NPAS="no" ; 
+fi
+
+if [ -n "$NK1" ] ; then NK1="yes" ; 
+elif [ -n "$KEY1" ] ; then NK1="yes" ; 
+else NK1="no" ; 
+fi
+if [ -n "$NK2" ] ; then NK2="yes" ; 
+elif [ -n "$KEY2" ] ; then NK2="yes" ; 
+else NK2="no" ; 
+fi
+if [ -n "$NK3" ] ; then NK3="yes" ; 
+elif [ -n "$KEY4" ] ; then NK3="yes" ; 
+else NK3="no" ; 
+fi
+if [ -n "$NK4" ] ; then NK4="yes" ; 
+elif [ -n "$KEY4" ] ; then NK4="yes" ; 
+else NK4="no" ; 
+fi
+
+
+################## Now draw and run the TUI.
+ShowTUI
+
+#cursor 0
+J=1
+y=2
+x=13
+xo=13
+STR=$NICK
+WT=s
+
+# Run main dialog box until ESC
+while :
+do
+printat $y $x
+get_key
+MV=0 # Handle widget traversal (UP,DN,TAB).
+case $_KEY in
+   " ")printat 1 24 "key=[SP]" ; eval $(button)
+;; ${NL})printat 1 24 "key=[NL]" ; eval $(button)
+        eval SP=\$WS$J; eval $SP="$STR"
+	x=$xo
+;; "${ESC}") MV=$J #break
+;; '[A')printat 1 24 "key=[UP]" ; MV=$J
+        [ "$J" -eq 12 ] && J=8
+        [ "$J" -eq 16 ] && J=8
+        [ "$J" -gt 19 ] && J=12
+        J=$(($J - 1))
+;; '[B')printat 1 24 "key=[DN]" ; MV=$J
+        [ "$J" -eq 11 ] && J=20
+        [ "$J" -eq 15 ] && J=20
+        [ "$J" -le 19 ] && J=$(($J + 1))
+;; "${TAB}")printat 1 24 "key=[TB]" ; MV=$J
+	case $J in 
+          22) J=1 ;; 
+          [89]|1[0-5]) J=$(($J + 4)) ;; 
+          1[6-8]) J=$(($J - 7)) ;; 
+          *) J=$(($J + 1)) ;; 
+	esac
+;; '[5~')printat 1 24 "key=[V+]"
+;; '[6~')printat 1 24 "key=[V-]"
+;; '[1~')printat 1 24 "key=[HM]"
+;; '[4~')printat 1 24 "key=[EN]"
+;; '[C')printat 1 24 "key=[>>]"
+        [ "$WT" != "b" ] && [ $x -lt $((${#STR} + $xo)) ] && x=$(($x + 1))
+        [ "$WT" = "b" ] && [ $J -ge 12 ] && [ $J -le 15 ] && {
+          MV=$J ; J=$(($J + 4)) 
+	}
+        [ "$WT" = "b" ] && [ $J -ge 20 ] && [ $J -le 22 ] && {
+          MV=$J ; J=$(($J + 1)) 
+        }
+;; '[D')printat 1 24 "key=[<<]"
+        [ "$WT" != "b" ] && [ $x -gt $xo ] && x=$(($x - 1))
+        [ "$WT" = "b" ] && [ $J -ge 12 ] && [ $J -le 15 ] && {
+          MV=$J ; J=$(($J - 4)) 
+	}
+        [ "$WT" = "b" ] && [ $J -gt 20 ] && {
+          MV=$J ; J=$(($J - 1)) 
+        }
+;; "${C_D}")printat 1 24 "key=[^D]"
+;; "${C_H}")printat 1 24 "key=[^H]"
+;; "${BS}")printat 1 24 "key=[BS]"
+	[ "$WT" != "b" ] && [ $x -gt $xo ] && {
+          sreplace $(($x - $xo))
+	  x=$(($x - 1))
+          printat $y $xo "$STR "
+        }
+;; [[:cntrl:]]) printat 1 24 "key=[CTL]"
+;; [[:graph:]]) printat 1 24 "key=[${_KEY}]"
+        case $_KEY in .|-|_) ;; [[:punct:]]) continue ;; esac
+	[ "$WT" = "i" ] && { case $_KEY in [0-9]) ;; *) continue ;; esac }
+	[ "$WT" != "b" ] && {
+          sreplace $(($x - $xo)) "${_KEY}"
+          printat $y $xo $STR 
+	  x=$(($x + 1))
+        }
+	[ "$WT" = "b" ] && [ $J -le 19 ] && {
+          case $_KEY in y|Y) STR="yes" ;; *) STR="no " ;; esac
+          printat $y $xo "${STR}"
+	  eval SP=\$WS$J; eval $SP="$STR"
+	}
+;; *)printat 1 24 "key=[HUH]"
+;;
+esac
+
+# Set x and y if traversing between widgets
+if [ $MV -ne 0 ] ; then
+  # Clear and restore old widget to STR before moving on.
+  eval WE=\$WE$MV
+  eval SP=\$WS$MV
+  eval STR=\$"$SP"
+  echo "${WE}${STR}"
+  # Traverse
+  if [ "$J" -lt 1 ] ; then J=1
+  elif [ "$J" -gt 22 ] ; then J=22
+  fi
+  if   [ "$J" -lt 4 ] ; then y=$(($J + 1)) ; x=13
+  elif [ "$J" -lt 8 ] ; then y=$(($J + 2)) ; x=13
+  elif [ "$J" -lt 12 ] ; then y=$(($J + 3)) ; x=3
+  elif [ "$J" -lt 16 ] ; then y=$(($J - 1)) ; x=32
+  elif [ "$J" -lt 20 ] ; then y=$(($J - 5)) ; x=37
+  elif [ "$J" -eq 20 ] ; then y=17; x=8
+  elif [ "$J" -eq 21 ] ; then y=17; x=25
+  elif [ "$J" -eq 22 ] ; then y=17; x=43
+  fi
+  xo=$x
+  eval SP=\$WS$J
+  eval STR=\$"$SP"
+  printat $y $xo $STR
+  eval WT=\$WT$J
+fi
+done
+
+# Goto top left corner (1,1), set normal text, fix tty, turn on the cursor.
+printat 1 1 $N
+stty sane
+clear
+cursor 1
+
+### Construct a tinyirc command line to save.
+CMD="tinyirc $NICK $PORT ${SERV:-$DSRV}"
+
+OPS=""
+OP=\?
+case "$ID" in y*|Y*) OPS="${OP}identify=$IPAS"; OP=\& ;; esac 
+if [ -n "$PASS" ] ; then
+  OPS="${OPS}${OP}pass=${PASS}";
+else case "$NPAS" in 
+  y*|Y*) OPS="${OPS}${OP}needpass" ;; esac
+fi 
+[ -n "$OPS" ] && CMD="${CMD}/$OPS"
+
+for J in 1 2 3 4
+do
+eval CH="\$CH$J"; eval NK="\$NK$J"; eval KEY="\$KEY$J"
+[ -n "$CH" ] && {
+  CMD="${CMD}/$CH"
+  if [ -n "$KEY" ] ; then
+    CMD="${CMD},key=${KEY}"
+  else case "$NK" in 
+    y*|Y*) CMD="${CMD},needkey" ;; esac
+  fi 
+}
+done
+
+echo $CMD
